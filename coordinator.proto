@@ -1,0 +1,35 @@
+syntax = "proto3";
+package csce438;
+import "google/protobuf/timestamp.proto";
+
+// ------------------------------------------------------------
+// The coordinator service definition
+// These are the different functionalities exposed by service
+// ------------------------------------------------------------
+
+//Init and Heartbeat potentially redundant
+service CoordService{
+  rpc Heartbeat (ServerInfo) returns (Confirmation) {}
+  rpc GetServer (ID) returns (ServerInfo) {}
+  // ZooKeeper API here
+}
+
+//server info message definition
+message ServerInfo{
+  int32 serverID = 1;
+  string hostname = 2;
+  string port = 3;
+  string type = 4;
+}
+
+//confirmation message definition
+message Confirmation{
+  bool status = 1;
+}
+
+//id message definition
+message ID{
+  int32 id = 1;
+}
+
+
