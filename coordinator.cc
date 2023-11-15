@@ -60,7 +60,7 @@ std::time_t getTimeNow();
 void checkHeartbeat();
 
 
-bool ServerStruct::isActive(){
+bool ServerStruct::isActive() {
     bool status = false;
     if(!missed_heartbeat){
         status = true;

@@ -12,6 +12,21 @@ service CoordService{
   rpc Heartbeat (ServerInfo) returns (Confirmation) {}
   rpc GetServer (ID) returns (ServerInfo) {}
   // ZooKeeper API here
+  rpc create (PathAndData) returns (Status) {}
+  rpc exists (Path) returns (Status) {}
+}
+
+message PathAndData {
+  string path = 1;
+  string data = 2;
+}
+
+message Path {
+  string path = 1;
+}
+
+message Status {
+  bool status = 1;
 }
 
 //server info message definition

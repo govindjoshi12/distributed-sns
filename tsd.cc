@@ -79,17 +79,31 @@ struct Client {
   std::string username;
   bool connected = false;
   int following_file_size = 0;
-  std::vector<Client*> client_followers;
-  std::vector<Client*> client_following;
+  std::vector<ClientData*> client_followers;
+  std::vector<ClientData*> client_following;
+
   ServerReaderWriter<Message, Message>* stream = 0;
   bool operator==(const Client& c1) const{
     return (username == c1.username);
   }
+  bool operator>(const Client& c1) const{
+    return (username > c1.username);
+  }
 };
+
+struct Post {
+  Message m;
+  Client* c;
+};
+
+struct ClientData {
+  Client* c;
+  Timestamp t;
+}
 
 //Vector that stores every client that has been created
 std::vector<Client*> client_db;
-std::vector<Message> posts;
+std::vector<Post*> posts;
 
 class SNSServiceImpl final : public SNSService::Service {
   
@@ -120,7 +134,7 @@ class SNSServiceImpl final : public SNSService::Service {
   int indexOfFollowing(Client* client1, Client* client2) {
     int idx = -1;
     for(int i = 0; i < ((int)client1->client_following.size()); i++) {
-      if(*client1->client_following[i] == *client2) {
+      if(*client1->client_following[i]->c == *client2) {
         idx = i;
         break;
       }
@@ -132,7 +146,7 @@ class SNSServiceImpl final : public SNSService::Service {
   int indexOfFollower(Client* client1, Client* client2) {
     int idx = -1;
     for(int i = 0; i < ((int)client1->client_followers.size()); i++) {
-      if(*client1->client_followers[i] == *client2) {
+      if(*client1->client_followers[i]->c == *client2) {
         idx = i;
         break;
       }
@@ -157,12 +171,12 @@ class SNSServiceImpl final : public SNSService::Service {
 
     int numFollowers = (int)client->client_followers.size();
     for(int i = 0; i < numFollowers; i++) {
-      list_reply->add_followers(client->client_followers[i]->username);
+      list_reply->add_followers(client->client_followers[i]->c->username);
     }
 
     int numFollowing = (int)client->client_following.size();
     for(int i = 0; i < numFollowing; i++) {
-      list_reply->add_following(client->client_following[i]->username);
+      list_reply->add_following(client->client_following[i]->c->username);
     }
 
     return Status::OK;
@@ -202,6 +216,14 @@ class SNSServiceImpl final : public SNSService::Service {
         status = FAILURE_ALREADY_EXISTS;
         message = "You already follow " + toFollow->username;
       } else {
+        ClientData* toFollowCD = new ClientData;
+        toFollowCD->c = toFollow;
+        toFollowCD->t = request->timestamp();
+
+        ClientData* clientCD = new ClientData;
+        clientCD->c = client;
+        clientCD->t = request->timestamp();
+
         client->client_following.push_back(toFollow);
         toFollow->client_followers.push_back(client);
         message = "Successfully followed " + toFollow->username;
@@ -313,6 +335,28 @@ class SNSServiceImpl final : public SNSService::Service {
     return output;
   }
 
+  std::vector<Post*> getFollowingPosts(Client* c, int maxPosts) {
+
+    std::vector<ClientData*> following = c->client_following;
+    std::set<ClientData*> followingSet(following.begin(), following.end());
+
+    std::vector<Post*> timelinePosts;
+    int i = (int)posts.size() - 1;
+    while (maxPosts > 0 && i >= 0) {
+      Post* p = posts[i];
+      // If post p is written by someone client c follows
+      if(followingSet.find(p->c) != followingSet.end()
+        && p->m->timestamp() >= ) {
+        // Add p to timelinePosts
+        timelinePosts.push_back(p);
+        maxPosts--;
+      }
+      i--;
+    }
+
+    return timelinePosts;
+  }
+
   Status Timeline(ServerContext* context, 
 		ServerReaderWriter<Message, Message>* stream) override {
 
@@ -340,20 +384,19 @@ class SNSServiceImpl final : public SNSService::Service {
         // message to the timeline, and simply set the client's stream.
         client->stream = stream;
         
-        // Write last max(numposts, 20) posts to stream on first arrival
+        // Write last min(numposts, 20) posts to stream on first arrival
 
         // In production, we'd use a heap/PQ which keeps messages ordered by timestamp
         // and mutex for accessing the posts vector.
-        int totalPosts = (int)(posts.size());
-        int numPosts = std::min(20, totalPosts);
+        std::vector<Post*> timelinePosts = getFollowingPosts(client, 20);
 
         std::ofstream myFile;
         myFile.open(DIR + u + ".txt", std::ios_base::app);
 
         // According to testcases, these should be printed in reverse chronological order
-        for(int i = totalPosts - 1; i >= totalPosts - numPosts; i--) {
-          stream->Write(posts[i]);
-          myFile << formatMessageOutput(posts[i].timestamp(), posts[i].username(), posts[i].msg());
+        for(Post* p : timelinePosts) {
+          stream->Write(p->m);
+          myFile << formatMessageOutput(p->m.timestamp(), p->m.username(), p->m.msg());
         }
 
         myFile.close();
@@ -364,7 +407,10 @@ class SNSServiceImpl final : public SNSService::Service {
         // std::string output = formatMessageOutput(t, u, m);
 
         // Store message in list
-        posts.push_back(message);
+        Post* p = new Post;
+        p->m = message;
+        p->c = client;
+        posts.push_back(p);
 
         // Write message to file
 

@@ -28,17 +28,24 @@ void sig_ignore(int sig) {
   std::cout << "Signal caught " + sig;
 }
 
-Message MakeMessage(const std::string& username, const std::string& msg) {
-    Message m;
-    m.set_username(username);
-    m.set_msg(msg);
+Timestamp* getCurrentTimestamp() {
     google::protobuf::Timestamp* timestamp = new google::protobuf::Timestamp();
     timestamp->set_seconds(time(NULL));
     timestamp->set_nanos(0);
-    m.set_allocated_timestamp(timestamp);
-    return m;
+    return timestamp;
 }
 
+Message MakeMessage(const std::string& username, const std::string& msg) {
+  Message m;
+  m.set_username(username);
+  m.set_msg(msg);
+  m.set_allocated_timestamp(getCurrentTimestamp());
+  return m;
+}
+
+void timestampRequest(Request *request) {
+  request->set_allocated_timestamp(getCurrentTimestamp());
+}
 
 class Client : public IClient
 {
@@ -199,6 +206,7 @@ IReply Client::List() {
     ListReply listReply;
     request.set_username(username);
 
+    timestampRequest(&request);
     Status status = stub_->List(&context, request, &listReply);
 
     ire.grpc_status = status;
@@ -240,6 +248,7 @@ IReply Client::Follow(const std::string& username2) {
     request.set_username(username);
     request.add_arguments(username2);
 
+    timestampRequest(&request);
     Status status = stub_->Follow(&context, request, &reply);
 
     ire.grpc_status = status;
@@ -269,6 +278,7 @@ IReply Client::UnFollow(const std::string& username2) {
     request.set_username(username);
     request.add_arguments(username2);
 
+    timestampRequest(&request);
     Status status = stub_->UnFollow(&context, request, &reply);
 
     ire.grpc_status = status;
@@ -296,6 +306,7 @@ IReply Client::Login() {
     Reply reply;
     request.set_username(username);
 
+    timestampRequest(&request);
     Status status = stub_->Login(&context, request, &reply);
 
     ire.grpc_status = status;

@@ -1,4 +1,7 @@
+### Design Document
 
+
+### Compilation
 Compile the code using the provided makefile:
 
     make

@@ -64,6 +64,7 @@ message ListReply {
 message Request {
   string username = 1;
   repeated string arguments = 2;
+  google.protobuf.Timestamp t = 3;
 }
 
 message Reply {
