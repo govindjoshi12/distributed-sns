@@ -28,55 +28,70 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 syntax = "proto3";
-
-package csce438;
-
+package SNS;
 import "google/protobuf/timestamp.proto";
 
 // The messenger service definition.
-service SNSService{
+service SNSService {
 
-  rpc Login (Request) returns (Reply) {}
-  rpc List (Request) returns (ListReply) {}
-  rpc Follow (Request) returns (Reply) {}
-  rpc UnFollow (Request) returns (Reply) {}
-  // Bidirectional streaming RPC
-  rpc Timeline (stream Message) returns (stream Message) {} 
+	rpc Login (Request) returns (Reply) {}
+	rpc List (Request) returns (ListReply) {}
+	rpc Follow (Request) returns (Reply) {}
+	rpc UnFollow (Request) returns (Reply) {}
+
+	// For cross-server communication
+	rpc GetLog (SiblingRequest) returns (LogReply) {}
+	rpc AddPost (Message) returns (Reply) {}
+
+	// Bidirectional streaming RPC
+	rpc Timeline (stream Message) returns (stream Message) {} 
 }
 
-enum IStatus {
-  SUCCESS = 0;
-  FAILURE_ALREADY_EXISTS = 1;
-  FAILURE_NOT_EXISTS = 2;
-  FAILURE_INVALID_USERNAME = 3;
-  FAILURE_NOT_A_FOLLOWER = 4;
-  FAILURE_INVALID = 5;
-  FAILURE_UNKNOWN = 6;
+// Want to rename (not important)
+enum SNSStatus {
+	SUCCESS = 0;
+	FAILURE_ALREADY_EXISTS = 1;
+	FAILURE_NOT_EXISTS = 2;
+	FAILURE_INVALID_USERNAME = 3;
+	FAILURE_NOT_A_FOLLOWER = 4;
+	FAILURE_INVALID = 5;
+	FAILURE_UNKNOWN = 6;
 }
 
 message ListReply {
-  repeated string all_users = 1;
-  repeated string followers = 2;
-  repeated string following = 3;
-  IStatus status = 4;
+	repeated string all_users = 1;
+	repeated string followers = 2;
+	repeated string following = 3;
+	SNSStatus status = 4;
 }
 
 message Request {
-  string username = 1;
-  repeated string arguments = 2;
-  google.protobuf.Timestamp t = 3;
+	string username = 1;
+	repeated string arguments = 2;
+	google.protobuf.Timestamp timestamp = 3;
 }
 
 message Reply {
-  string msg = 1;
-  IStatus status = 2;
+	string msg = 1;
+	SNSStatus status = 2;
 }
 
 message Message {
-  //Username who sent the message
-  string username = 1;
-  //Message from the user
-  string msg = 2;
-  //Time the message was sent
-  google.protobuf.Timestamp timestamp = 3;
+	string username = 1; // Username who sent the message
+	string msg = 2; // Message content
+	google.protobuf.Timestamp timestamp = 3; // Timestamp 
+}
+
+// For cross-server communication
+message SiblingRequest {
+	// Empty
+}
+
+message LogReply {
+
+	// Used for communicating the entire log of
+	// user info and posts processed by a server
+
+	string userinfo = 1;
+	string posts = 2;
 }
