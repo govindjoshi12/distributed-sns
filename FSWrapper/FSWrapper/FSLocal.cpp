@@ -9,6 +9,11 @@
 namespace fs = std::filesystem;
 using namespace std;
 
+/*
+	Initializes FSLocal instance. If baseDir string is
+	not empty, create base dir folder in current working directory.
+	FSLocal will prefix each file with baseDir.
+*/
 FSLocal::FSLocal(const string &baseDir) {
 
 	// Current working directory is executable location
@@ -100,7 +105,7 @@ int FSLocal::write(std::string file, std::string data, bool createDirectories, b
 
 }
 
-// Untested
+// UNTESTED
 int FSLocal::remove(string file) {
 
 	file = getFullPath(file);
@@ -110,14 +115,17 @@ int FSLocal::remove(string file) {
 	return (numDeleted > 0) ? 0 : -1;
 }
 
-int FSLocal::rename(string originalPath, string newPath) {
+/* TODO: implement */
+int FSLocal::move(string file, string dest) {
 	return -1;
 }
 
+/* TODO: implement */
 int FSLocal::copy(string src, string dest) {
 	return -1;
 }
 
+/* TODO: implement */
 string FSLocal::toString() {
 	return "";
 }

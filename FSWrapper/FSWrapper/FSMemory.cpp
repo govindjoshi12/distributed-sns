@@ -146,37 +146,12 @@ int FSMemory::write(string file, string data, bool createDirectories, bool overw
 	return success;
 }
 
-// originalPath: full path to file
-// newName: new name (relative)
-int FSMemory::rename(string originalPath, string newName) {
-
-	if(coarseMutex) {
-		fsMutex.lock();
-	}
-
-	int success = -1;
-	if(originalPath == "" && !isNameValid(newName)) {
-		return success;
-	}
-
-	// get parent node of actual node
-	vector<string> tokens = splitFilepath(originalPath);
-	string actualFile = tokens.back();
-	tokens.pop_back();
-
-	shared_ptr<FSTreeNode> node = getTreeNode(filetree, tokens, false);
-
-	if(node) {
-		success = node->renameChild(actualFile, newName);
-	}
-
-	if(coarseMutex) {
-		fsMutex.unlock();
-	}
-
-	return success;
+/* TODO: IMPLEMENT */
+int FSMemory::move(string file, string dest) {
+	return -1;
 }
 
+/* TODO: IMPLEMENT */
 int FSMemory::copy(string src, string dest) {
 	return -1;
 }

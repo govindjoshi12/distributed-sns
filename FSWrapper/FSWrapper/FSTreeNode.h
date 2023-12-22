@@ -19,3 +19,5 @@ public:
     int renameChild(std::string childName, std::string newName);
     int removeChild(std::string childName);
 };
+
+// TODO: back pointers to parent

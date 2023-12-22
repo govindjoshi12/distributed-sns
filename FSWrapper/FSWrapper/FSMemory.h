@@ -22,7 +22,7 @@ public:
 	virtual bool exists(std::string file);
 	virtual int read(std::string file, std::string &data, int offset = 0);
 	virtual int write(std::string file, std::string data, bool createDirectories, bool overwrite);
-	virtual int rename(std::string originalPath, std::string newPath);
+	virtual int move(std::string file, std::string dest);
 	virtual int copy(std::string src, std::string dest);
 	virtual int remove(std::string file);
 	std::string toString();
@@ -47,3 +47,4 @@ private:
 	static std::string FOLDER;
 	static std::string FILE;
 };
+
