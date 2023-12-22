@@ -55,12 +55,14 @@ private:
 	std::string port;
 	ID id;
 	ServerInfo server;
+	bool inChat = false;
 
 	std::unique_ptr<SNSService::Stub> stub_;
 	std::unique_ptr<CoordService::Stub> coordStub_;
 	
 	// Longer delay to allow leader elections to happen after dead master
 	int refreshServerDelay = 5;
+	int retries = 0;
 
     // ---- UI METHODS ----
 	void displayTitle() const;
@@ -71,6 +73,7 @@ private:
     void displayReConnectionMessage(const std::string& host, const std::string & port);
 	
     // ---- COMMAND PROCESSING ----
+	void runClientBash();
 	std::string getCommand() const;
     IReply processCommand(std::string& cmd);
 	void processTimeline();
@@ -89,4 +92,5 @@ private:
 	static Timestamp* getCurrentTimestamp();
 	static Message MakeMessage(const std::string &username, const std::string &msg);
 	static void timestampRequest(Request *request);
+	static const int MAX_RETRIES = 3;
 };

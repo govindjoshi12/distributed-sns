@@ -138,7 +138,7 @@ public:
 
 	// Cross-Server Communication
 	Status GetLog(ServerContext *context, const SiblingRequest* sb, LogReply* logReply);
-	Status AddPost(ServerContext *context, const Message* message, Reply* reply);
+	Status AddPost(ServerContext *context, const Request* request, Reply* reply);
 
 private:
 
@@ -179,7 +179,8 @@ private:
 
 	void processUserInfoFromFile(std::string filedata, bool save);
 	void updatePostsFromFile(std::string filedata, bool save);
-	bool propogateToCounterparts(std::string method, const Request *request, const Message *message = NULL);
+	void propogateHelper(std::string method, const Request &request, std::string destination);
+	void propogate(std::string method, const Request* request);
 
 	// STATIC MEMBERS AND FUNCTIONS
   	static std::string formatMessageOutput(const Message &message);
@@ -194,6 +195,8 @@ private:
 	static std::string UNFOLLOW;
 	static std::string ADD_POST;
 	static std::string TOP_LEVEL_DIR;
+	static std::string COUNTERPARTS;
+	static std::string OTHER_MASTERS;
 };
 
 /*

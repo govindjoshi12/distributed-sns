@@ -41,7 +41,7 @@ service SNSService {
 
 	// For cross-server communication
 	rpc GetLog (SiblingRequest) returns (LogReply) {}
-	rpc AddPost (Message) returns (Reply) {}
+	rpc AddPost (Request) returns (Reply) {}
 
 	// Bidirectional streaming RPC
 	rpc Timeline (stream Message) returns (stream Message) {} 
@@ -69,6 +69,8 @@ message Request {
 	string username = 1;
 	repeated string arguments = 2;
 	google.protobuf.Timestamp timestamp = 3;
+	Message message = 4;
+	bool from_server = 5;
 }
 
 message Reply {

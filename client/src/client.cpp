@@ -26,7 +26,10 @@ using namespace std;
 
 // ---- CLIENT STATIC UTILITY FUNCTIONS ----
 
-string OUTPUT_SEP = "\n---\n";
+string OUTPUT_SEP = "---\n";
+string CMD_INPUT = "Cmd> ";
+string CHAT_INPUT = "> ";
+string EXIT_CHAT = "exit";
 
 // change all characters in str to upper case
 void toUpperCase(string& str)
@@ -86,15 +89,7 @@ void Client::run()
 	}
 
 	displayTitle();
-	while(true) {
-		string cmd = getCommand();
-		IReply reply = processCommand(cmd);
-		displayCommandReply(cmd, reply);
-		if (reply.grpc_status.ok() && cmd == "TIMELINE") {
-			processTimeline();
-		}
-	}
-
+	runClientBash();
 }
 
 // ---- COMMAND PROCESSING ----
@@ -103,15 +98,26 @@ void Client::run()
 void Client::displayTitle() const
 {
 	string title = 
-	"\n========= TINY SNS CLIENT =========\n"
+	"========= TINY SNS CLIENT =========\n"
 	" Command Lists and Format:\n"
 	" FOLLOW <username>\n"
 	" UNFOLLOW <username>\n"
 	" LIST\n"
 	" TIMELINE\n"
-	"=====================================\n";
+	"===================================\n";
 
 	cout << title;
+}
+
+void Client::runClientBash() {
+	while(true) {
+		string cmd = getCommand();
+		IReply reply = processCommand(cmd);
+		displayCommandReply(cmd, reply);
+		if (reply.grpc_status.ok() && cmd == "TIMELINE") {
+			processTimeline();
+		}
+	}
 }
 
 // Get input and perform input validation
@@ -119,7 +125,7 @@ string Client::getCommand() const
 {
 	string input;
 	while (true) {
-		cout << "Cmd> ";
+		cout << CMD_INPUT;
 		getline(cin, input);
 		size_t index = input.find_first_of(" ");
 		if (index != string::npos) {
@@ -194,11 +200,14 @@ void Client::displayCommandReply(const string& comm, const IReply& reply) const
 					
 					cout << "Following: ";
 					printWithSeparator(reply.following);
+				} else {
+					cout << reply.comm_msg << "\n";
 				}
-				cout << reply.comm_msg << "\n";
+				cout << OUTPUT_SEP;
 				break;
 			default:
 				cout << reply.comm_msg << "\n";
+				cout << OUTPUT_SEP;
 				break;
 		}
 	} else {
@@ -249,12 +258,15 @@ void Client::getServerInfo()
 	Status status = coordStub_->GetServer(&context, id, &server);
 
 	if(!status.ok()) {
-		if(status.error_code() == StatusCode::UNAVAILABLE) {
+		if(status.error_code() == StatusCode::UNAVAILABLE && retries < MAX_RETRIES) {
 			cout << "Server unavailable. Retrying...\n";
+			retries += 1;
 		} else {
-			cout << "Unknown error. Exiting." << "\n";
+			cout << "Cannot reach server. Exiting." << "\n";
 			exit(1);
 		}
+	} else {
+		retries = 0;
 	}
 
 	string serverHostname = server.hostname();
@@ -388,17 +400,31 @@ IReply Client::UnFollow(const string &username2)
 
 void Client::processTimeline()
 {
-	cout << "Now you are in the timeline" << endl;
+	cout << "### Entering chat ###" << endl;
+	cout << "Type \'" << EXIT_CHAT << "\' to exit chat." << endl;
 	Timeline(username);
+	cout << "### Exiting chat ###" << endl;
 }
 
 string Client::getPostMessage()
 {
 	char buf[MAX_DATA];
-	while (1) {
+	while (true) {
+		cout << CHAT_INPUT;
 		fgets(buf, MAX_DATA, stdin);
-		if (buf[0] != '\n')  break;
+		if (buf[0] != '\n') {
+
+			// Do not include new line in buf
+			char *p = strchr(buf, '\n');
+			if (p != NULL) {
+				*p = '\0';
+			}
+			break;
+		}
 	}
+
+	// https://stackoverflow.com/questions/34982185/does-these-methods-of-removing-n-left-
+	// from-fgets-differ-concerning-performanc?noredirect=1&lq=1
 
 	string message(buf);
 	return message;
@@ -406,9 +432,12 @@ string Client::getPostMessage()
 
 void Client::displayPostMessage(const string& sender, const string& message, time_t& time)
 {
-	string t_str(ctime(&time));
-	t_str[t_str.size()-1] = '\0';
-	cout << sender << " (" << t_str << ") >> " << message << endl;
+	tm * ltm = localtime(&time);
+	
+	char buffer[8];
+	std::strftime(buffer, 8, "%H:%M", ltm);  
+
+	cout << sender << " (" << buffer << "): " << message << "\n";
 }
 
 void Client::Timeline(const string &username)
@@ -429,14 +458,22 @@ void Client::Timeline(const string &username)
 		stream->Write(MakeMessage(username, ""));
 		while(true) {
 			string msgToSend = this->getPostMessage();
-			Message m = MakeMessage(username, msgToSend);
-			stream->Write(m);
-		}
+			if(msgToSend == EXIT_CHAT) {
+				break;
+			}
 
+			Message m = MakeMessage(username, msgToSend);
+			bool success = stream->Write(m);
+
+			if(!success) {
+				break;
+			}
+		}
 	});
 
 	Message message;
 	while(stream->Read(&message)) {
+
 		string u = message.username();
 		string m = message.msg();
 		time_t t = message.timestamp().seconds();

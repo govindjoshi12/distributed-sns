@@ -100,6 +100,7 @@ int FSLocal::write(std::string file, std::string data, bool createDirectories, b
 
 }
 
+// Untested
 int FSLocal::remove(string file) {
 
 	file = getFullPath(file);

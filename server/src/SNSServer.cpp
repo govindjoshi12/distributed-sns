@@ -160,6 +160,8 @@ string SNSServer::LOGIN = "login";
 string SNSServer::FOLLOW = "follow";
 string SNSServer::UNFOLLOW = "unfollow";
 string SNSServer::ADD_POST = "add_post";
+string SNSServer::COUNTERPARTS = "counterparts";
+string SNSServer::OTHER_MASTERS = "other_masters";
 
 // Message format:
 /*
@@ -179,7 +181,7 @@ string SNSServer::formatMessageOutput(const Message &message)
 
     output += "T " + timeStr;
     output += "\nU " + u;
-    output += "\nW " + m + "\n";
+    output += "\nW " + m + "\n\n";
     return output;
 }
 
@@ -573,20 +575,23 @@ void SNSServer::updatePostsFromFile(string filedata, bool save)
 	}
 }
 
-bool SNSServer::propogateToCounterparts(string method, const Request *request, const Message *message)
+void SNSServer::propogateHelper(string method, const Request &request, string destination) 
 {
-	// cannot have null message if method is add_post
-	assert(method != ADD_POST || message != NULL);
-
-	log(INFO, "Propogating " + method + " to available counterparts.");
-
 	ClientContext context;
 	ServerList serverList;
-
-	Status status = coordStub_->GetCounterparts(&context, serverInfo, &serverList);
+	Status status;
+	
+	if(destination == COUNTERPARTS) {
+		status = coordStub_->GetCounterparts(&context, serverInfo, &serverList);
+	} else if(destination == OTHER_MASTERS) {
+		status = coordStub_->GetOtherClusterMasters(&context, serverInfo, &serverList);
+	} else {
+		// sanity check
+		log(FATAL, "Invalid propogation destination specified!");
+	}
 
 	if(!status.ok()) {
-		return false;
+		log(FATAL, "Request to coordinator for " + destination + " failed!");
 	}
 
 	// Not sure if creating stubs each time will have a big performance impact
@@ -601,17 +606,17 @@ bool SNSServer::propogateToCounterparts(string method, const Request *request, c
 		Status status;
 
 		if(method == LOGIN) {
-			status = slaveStub_->Login(&slaveContext, *request, &reply);
+			status = slaveStub_->Login(&slaveContext, request, &reply);
 		} else if(method == FOLLOW) {
-			status = slaveStub_->Follow(&slaveContext, *request, &reply);
+			status = slaveStub_->Follow(&slaveContext, request, &reply);
 		} else if(method == UNFOLLOW) {
-			status = slaveStub_->UnFollow(&slaveContext, *request, &reply);
+			status = slaveStub_->UnFollow(&slaveContext, request, &reply);
 		} else if(method == ADD_POST) {
-			status = slaveStub_->AddPost(&slaveContext, *message, &reply);
+			status = slaveStub_->AddPost(&slaveContext, request, &reply);
 		} else {
-			// invalid option
-			cout << "Invalid replication option" << "\n";
-			return false;
+			// sanity check: invalid option
+			log(FATAL, "Invalid replication method!");
+			return;
 		}
 
 		// TODO: No handling of error status right now
@@ -619,8 +624,26 @@ bool SNSServer::propogateToCounterparts(string method, const Request *request, c
 
 		log(INFO, "Sent " + method + " request to " + addr);
 	}
+}
 
-	return true;
+void SNSServer::propogate(string method, const Request *request) {
+	
+	// Any propogation only occurs if you are a master
+	if(master) {
+
+		Request newRequest;
+		newRequest.CopyFrom(*request);
+		newRequest.set_from_server(true);
+
+		// If you are a master, you always propogate to slaves
+		propogateHelper(method, newRequest, COUNTERPARTS);
+
+		// If the request is from a client, propogate to other cluster masters
+		// from_server is only set by servers
+		if(!request->from_server()) {
+			propogateHelper(method, newRequest, OTHER_MASTERS);
+		}
+	}
 }
 
 // ---- CLIENT API ----
@@ -661,9 +684,8 @@ Status SNSServer::Login(ServerContext* context, const Request* request, Reply* r
 
 	/* Replicate */
 	log(INFO, "Received login command for user " + client->username);
-	if(master) {
-		propogateToCounterparts(LOGIN, request);
-	}
+	
+	propogate(LOGIN, request);
 	
 	// TODO: Log login command
 	
@@ -709,6 +731,7 @@ Status SNSServer::Follow(ServerContext* context, const Request* request, Reply* 
 			string data = FOLLOW + " " + client->username + " " + toFollow->username + " " + timeStr + "\n";
 			write(userinfoPath, data);
 
+			message = "Successfully followed " + toFollow->username;
 		}
 	}
 
@@ -717,11 +740,9 @@ Status SNSServer::Follow(ServerContext* context, const Request* request, Reply* 
 
 	// REPLICATION
 	log(INFO, "Received follow request from " + client->username + " for " + toFollow->username + ": " + message);
-	if(master) {
-		propogateToCounterparts(FOLLOW, request);
-	}
+	
+	propogate(FOLLOW, request);
 
-	// TODO: LOG COMMAND
 	return Status::OK; 
 }
 
@@ -772,9 +793,8 @@ Status SNSServer::UnFollow(ServerContext* context, const Request* request, Reply
 	reply->set_status(status);
 
 	log(INFO, "Received unfollow request from " + client->username + " for " + toUnFollow->username + ": " + message);
-	if(master) {
-		propogateToCounterparts(UNFOLLOW, request);
-	}
+	
+	propogate(UNFOLLOW, request);
 
 	return Status::OK; 
 }
@@ -782,8 +802,6 @@ Status SNSServer::UnFollow(ServerContext* context, const Request* request, Reply
 Status SNSServer::List(ServerContext* context, const Request* request, ListReply* list_reply) 
 {
 	shared_ptr<Client> client = getClient(request->username());
-
-	string message;
 
 	int numUsers = (int)client_db.size();
 	for(int i = 0; i < numUsers; i++) {
@@ -812,9 +830,9 @@ Status SNSServer::Timeline(ServerContext* context, ServerReaderWriter<Message, M
 
 	while (stream->Read(&message)) {
 		
-		Timestamp t = message.timestamp();
-		string u = message.username();
-		string m = message.msg();
+		const Timestamp &t = message.timestamp();
+		const string &u = message.username();
+		const string &m = message.msg();
 
 		// If you do this inside the while loop,
 		// the current client doesn't start receiving 
@@ -847,15 +865,22 @@ Status SNSServer::Timeline(ServerContext* context, ServerReaderWriter<Message, M
 
 		} else {
 
-			addPostHelper(message, client);
+			// Empty posts are not allowed, but there is a possibility
+			// where an empty message to initialize the stream but the
+			// stream already exists. Ignore this empty message
+			if(m != "") {
+				addPostHelper(message, client);
 
-			// TODO: Propogate post to slaves
-			if(master) {
+				// TODO: Propogate post to slaves
+				if(master) {
+					Request request;
+					Message* toPropogate = new Message();
+					toPropogate->CopyFrom(message); // Copy message
 
-				// Do we need to allocate timestamp here?
-				Message toPropogate;
-				toPropogate.CopyFrom(message); // Copy message
-				propogateToCounterparts(ADD_POST, NULL, &toPropogate);
+					// Transfer ownership
+					request.set_allocated_message(toPropogate);
+					propogate(ADD_POST, &request);
+				}
 			}
 		}
 	}
@@ -885,13 +910,15 @@ Status SNSServer::GetLog(ServerContext *context, const SiblingRequest* sb, LogRe
 	For each post, finds the followers of the poster and adds the post to their stream (if open)
 	If the server is a slave, no streams will be open.
 */
-Status SNSServer::AddPost(ServerContext *context, const Message* message, Reply* reply) 
+Status SNSServer::AddPost(ServerContext *context, const Request* request, Reply* reply) 
 {
+	const Message &message = request->message();
+
 	// this should always return a non-null client pointer
 	// as the poster will be in the client_db before AddPost is called
-	shared_ptr<Client> client = getClient(message->username(), false);
+	shared_ptr<Client> client = getClient(message.username(), false);
 
-	addPostHelper(*message, client);
+	addPostHelper(message, client);
 
 	// TODO: More verbose message
 	log(INFO, "Received add_post request.");
