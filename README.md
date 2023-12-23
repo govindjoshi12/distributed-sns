@@ -62,7 +62,6 @@ If a server is a cluster, it propogates all requests to all of its available sla
 ### Client
 The client code provides a bash for the user to send requests with. Clients periodically send `GetServer()` requests to the coordinator to get the address of the current server which will serve its requests. If no servers are available, the refresh request is retried 3 times before the client exits.  
 
-<hr>
 
 ## Running the System
 This project uses cmake to build the executables. In order to build the system, you must ensure that you have the gRPC and glog libraries installed on your machines. 
@@ -106,7 +105,6 @@ p: 10000
 ```
 By default, connects to coordinator at `localhost:9000`
 
-<hr>
 
 ## Issues, Limitations, and Future Work
 - On the client side, once you enter the chat, there is no way to leave it. Need to close the stream on recipt of a `exit` command and return to the regular client bash. However, if a client reconnects to a different server, sending a post will fail, and the client will return to the regular bash.
