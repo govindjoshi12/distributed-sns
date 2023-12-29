@@ -10,17 +10,15 @@ In this social network system, users can login to the service, view other active
 
 The coordinator maintains a file lock service and server metadata in memory. It provides the infrastructure for cross-server communication and fault tolerance, and serves as the broker for communication between clients and servers.
 
-#### <ins>Heartbeat()</ins>
+#### Heartbeat()
 
 The main point of contact between the coordinator and servers is the Heartbeat RPC. Servers send an initial heartbeat on startup to register themselves with the coordinator, and then periodically send heartbeats to inform the coordinator that they are still active.
-
-***Initial Heartbeat***
 
 When a server sends an initial heartbeat, the coordinator creates an entry for the server in the specified cluster and stores its metadata (server address, etc.). The server tries to acquire the master file lock, and if it fails, it acquires a slave file lock. Servers write their address in their acquired files. If a server is a slave, the address of its cluster master is returned. If it's a master, the address of a another cluster master is returned if available. Servers then use the returned address to synchronize themselves with the current data.
 
 Each subsequent heartbeat also serves as a leader election. If the server is already a master, it remains the master. If the server is a slave, it attempts to acquire the master file lock. If it succeeds, it becomes the new cluster master.
 
-#### <ins>checkHeartbeats()</ins>
+#### checkHeartbeats()
 
 The check heartbeats method runs in a separate thread and checks to if any servers have missed their heartbeats. Servers that miss 2 heartbeats are considered inactive and their file locks are released. 
 
@@ -50,7 +48,6 @@ T <timestamp>
 U <username>
 W <post content>
 <newline>
-*/
 ```
 
 If a server is a cluster, it propogates all requests to all of its available slaves, and to all other cluster masters (which then propogate the data to their slaves).
